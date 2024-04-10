@@ -1,0 +1,11 @@
+# Python cache files
+__pycache__/
+
+# IDE directories
+.vscode/
+.idea/
+.ipynb_checkpoints/
+
+# Python files
+test.py
+test2.py
