@@ -6,6 +6,7 @@ __pycache__/
 .idea/
 .ipynb_checkpoints/
 data/
+svdb_dir/
 
 # Python files
 test.py
