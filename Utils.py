@@ -12,7 +12,7 @@ class LearningParameters:
     batch_size: int = 128
     cpu_count: int = os.cpu_count()
     learning_rate: float = 0.05
-    momentum: float = 0.9
+    momentum: float = 0.1
     weight_decay: float = 0.001
     epochs: int = 150
     device: torch.device = torch.device(

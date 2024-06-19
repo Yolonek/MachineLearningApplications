@@ -207,7 +207,7 @@ class SimpleCNN(nn.Module):
 
         self.classifier = nn.Sequential(OrderedDict([
             ('flatten', nn.Flatten()),
-            ('fc1', nn.Linear(in_features=16*5*5, out_features=120)), activation,
+            ('fc1', nn.Linear(in_features=16*10*10, out_features=120)), activation,
             ('fc2', nn.Linear(in_features=120, out_features=80)), activation,
             ('fc3', nn.Linear(in_features=80, out_features=10)),
             ('softmax', nn.Softmax(dim=1))
