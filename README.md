@@ -49,8 +49,8 @@ Repository contains projects created on the lecture *Machine Learning Applicatio
 </div>
 
 <div style="display: flex; justify-content: space-between;">
-    <img src="./4.AdvancedCNN/images/image1.png" alt="" width="400">
-    <img src="./4.AdvancedCNN/images/image2.png" alt="" width="400">
+    <img src="./4.AdvancedCNN/images/image1.png" alt="" width="500">
+    <img src="./4.AdvancedCNN/images/image2.png" alt="" width="300">
 </div>
 
 <div style="display: flex; justify-content: space-between;">
@@ -66,8 +66,8 @@ Repository contains projects created on the lecture *Machine Learning Applicatio
 </div>
 
 <div style="display: flex; justify-content: space-between;">
-    <img src="./1.Perceptrons/images/image4.png" alt="" width="400">
-    <img src="./1.Perceptrons/images/image6.png" alt="" width="400">
+    <img src="./1.Perceptrons/images/image4.png" alt="" width="300">
+    <img src="./1.Perceptrons/images/image6.png" alt="" width="500">
 </div>
 
 
