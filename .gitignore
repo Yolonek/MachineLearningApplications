@@ -6,10 +6,10 @@ __pycache__/
 .idea/
 .ipynb_checkpoints/
 data/
-svdb_dir/
 models/
+06.Transformers/
 
-# Python files
+# files
 test.py
-test2.py
 test.ipynb
+todo.txt
