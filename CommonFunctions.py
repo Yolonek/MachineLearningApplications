@@ -1,7 +1,7 @@
 import mplcyberpunk
 
 
-def enhance_plot(figure, axes, glow=False, alpha_gradient=0, lines=True, dpi=100):
+def enhance_plot(figure, axes, glow=False, alpha_gradient=0, lines=True, dpi=200):
     figure.set_facecolor('black')
     figure.set_dpi(dpi)
     axes.set_facecolor('black')
