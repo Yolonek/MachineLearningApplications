@@ -1,0 +1,53 @@
+legend.frameon: False
+#legend.numpoints: 1
+#legend.scatterpoints: 1
+#xtick.direction: out
+#ytick.direction: out
+#xtick.color: #2A3459
+axes.axisbelow: True
+#font.family: sans-serif
+#font.weight: bold
+axes.titleweight: bold
+figure.titleweight: bold
+#font.sans-serif: Arial, Liberation Sans, DejaVu Sans, Bitstream Vera Sans, sans-serif
+#lines.solid_capstyle: round
+#xtick.major.size: 0
+#ytick.major.size: 0
+#xtick.minor.size: 0
+#ytick.minor.size: 0
+figure.dpi: 120
+axes3d.xaxis.panecolor:    (1, 1, 1, 0)
+axes3d.yaxis.panecolor:    (1, 1, 1, 0)
+axes3d.zaxis.panecolor:    (1, 1, 1, 0)
+axes.labelweight: bold
+
+axes.prop_cycle: cycler('color', ['red', 'dodgerblue', 'limegreen', 'blueviolet', 'cyan', 'darkorange', 'maroon', 'violet', 'lightyellow', 'green',])
+
+image.cmap: cool
+
+# font color: white
+axes.linewidth: 0 # default 0.8
+xtick.top:           False   # draw ticks on the top side
+xtick.bottom:        True    # draw ticks on the bottom side
+xtick.labeltop:      False   # draw label on the top
+xtick.labelbottom:   True
+axes.spines.left: False
+axes.spines.bottom: False
+axes.spines.top: False
+axes.spines.right: False
+axes.edgecolor: white
+text.color: 1.0
+axes.labelcolor: 1.0
+xtick.color: 1.0
+ytick.color: 1.0
+
+# background: black
+figure.facecolor: black
+axes.facecolor: black
+savefig.facecolor: black
+
+# grid: bluish dark grey
+axes.grid: True
+grid.color: 2A3459
+legend.edgecolor: 2A3459
+grid.linestyle: -
