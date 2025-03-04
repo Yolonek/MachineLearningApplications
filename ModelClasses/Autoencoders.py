@@ -1,14 +1,15 @@
+import torch
 from torch import nn
 from collections import OrderedDict
 
 
-class HiddenBlock(nn.Module):
+class DenseBlock(nn.Module):
 
     def __init__(self,
                  input_size: int,
                  hidden_layers: tuple[int:] = None,
                  dropout: float = 0.2):
-        super(HiddenBlock, self).__init__()
+        super(DenseBlock, self).__init__()
         if hidden_layers is None:
             self.hidden_layers = []
         elif isinstance(hidden_layers, int):
@@ -48,7 +49,7 @@ class HiddenBlock(nn.Module):
         print(self)
 
 
-class DenseEncoder(HiddenBlock):
+class DenseEncoder(DenseBlock):
 
     def __init__(self,
                  input_shape: tuple[int, int, int],
@@ -77,7 +78,7 @@ class DenseEncoder(HiddenBlock):
         return self.output_layer(self.dense_layers(self.flatten(x)))
 
 
-class DenseDecoder(HiddenBlock):
+class DenseDecoder(DenseBlock):
 
     def __init__(self,
                  output_shape: tuple[int, int, int],
@@ -126,6 +127,230 @@ class DenseAutoencoder(nn.Module):
                                     hidden_layers=decoder_hidden_layers,
                                     latent_space_dim=latent_space_dim,
                                     dropout=dropout)
+
+    def forward(self, x):
+        return self.decoder(self.encoder(x))
+
+    def summary(self):
+        print(self)
+
+
+class ConvolutionalBlock(nn.Module):
+
+    def __init__(self,
+                 input_shape: tuple[int, int, int],
+                 convolutional_filters: tuple[int:],
+                 convolutional_kernels: tuple[int:],
+                 convolutional_strides: tuple[int:]):
+        super(ConvolutionalBlock, self).__init__()
+
+        self.input_shape = input_shape
+        self.convolutional_filters = convolutional_filters
+        self.convolutional_kernels = convolutional_kernels
+        self.convolutional_strides = convolutional_strides
+        self.num_conv_layers = len(self.convolutional_filters)
+
+        self.conv_layers = self._build_convolutional_layers()
+
+    def _build_convolutional_layers(self):
+        layers = []
+        in_channels = self.input_shape[0]
+        for i in range(self.num_conv_layers):
+            layers.append((
+                f'conv{i + 1}',
+                nn.Sequential(
+                    nn.Conv2d(
+                        in_channels=in_channels,
+                        out_channels=self.convolutional_filters[i],
+                        kernel_size=self.convolutional_kernels[i],
+                        stride=self.convolutional_strides[i],
+                        padding=(self.convolutional_kernels[i] - 1) // 2
+                    ),
+                    nn.ReLU(),
+                    nn.BatchNorm2d(self.convolutional_filters[i])
+                )
+            ))
+            in_channels = self.convolutional_filters[i]
+        return nn.Sequential(OrderedDict(layers))
+
+    def forward(self, x):
+        return self.conv_layers(x)
+
+    def summary(self):
+        print(self)
+
+
+class ConvolutionalEncoder(ConvolutionalBlock):
+
+    def __init__(self,
+                 input_shape: tuple[int, int, int],
+                 convolutional_filters: tuple[int:],
+                 convolutional_kernels: tuple[int:],
+                 convolutional_strides: tuple[int:],
+                 latent_space_dimension: int = 2):
+        super(ConvolutionalEncoder, self).__init__(
+            input_shape=input_shape,
+            convolutional_filters=convolutional_filters,
+            convolutional_kernels=convolutional_kernels,
+            convolutional_strides=convolutional_strides
+        )
+        self.latent_space_dim = latent_space_dimension
+        self.shape_before_bottleneck = None
+        self.shape_flattened = None
+
+        self.output_layer = self._build_output_layer()
+
+    def _build_output_layer(self):
+        dummy_input = torch.zeros(1, *self.input_shape)
+        conv_out = self.conv_layers(dummy_input)
+        self.shape_before_bottleneck = conv_out.shape[1:]
+        self.shape_flattened = conv_out.numel()
+        return nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(in_features=self.shape_flattened,
+                      out_features=self.latent_space_dim))
+
+    def forward(self, x):
+        return self.output_layer(self.conv_layers(x))
+
+    def summary(self):
+        print(self)
+
+
+class ConvolutionalTransposeBlock(nn.Module):
+
+    def __init__(self,
+                 shape_before_bottleneck: tuple[int:],
+                 convolutional_transpose_filters: tuple[int:],
+                 convolutional_transpose_kernels: tuple[int:],
+                 convolutional_transpose_strides: tuple[int:]):
+        super(ConvolutionalTransposeBlock, self).__init__()
+        self.shape_before_bottleneck = shape_before_bottleneck
+        self.convolutional_transpose_filters = convolutional_transpose_filters
+        self.convolutional_transpose_kernels = convolutional_transpose_kernels
+        self.convolutional_transpose_strides = convolutional_transpose_strides
+        self.num_convT_filters = len(convolutional_transpose_filters)
+
+        self.convT_layers = self._build_convolutional_transpose_layers()
+
+    def _build_convolutional_transpose_layers(self):
+        layers = []
+        in_channels = self.shape_before_bottleneck[0]
+        for i in range(self.num_convT_filters):
+            padding = (self.convolutional_transpose_kernels[i] - 1) // 2
+            output_padding = (self.convolutional_transpose_strides[i] -
+                              self.convolutional_transpose_kernels[i] + (2 * padding))
+            layers.append((
+                f'convTranspose{i + 1}',
+                nn.Sequential(
+                    nn.ConvTranspose2d(
+                        in_channels=in_channels,
+                        out_channels=self.convolutional_transpose_filters[i],
+                        kernel_size=self.convolutional_transpose_kernels[i],
+                        stride=self.convolutional_transpose_strides[i],
+                        padding=padding,
+                        output_padding=output_padding
+                    ),
+                    nn.ReLU(),
+                    nn.BatchNorm2d(self.convolutional_transpose_filters[i])
+                )
+            ))
+            in_channels = self.convolutional_transpose_filters[i]
+        return nn.Sequential(OrderedDict(layers))
+
+    def forward(self, x):
+        return self.convT_layers(x)
+
+    def summary(self):
+        print(self)
+
+
+class ConvolutionalDecoder(ConvolutionalTransposeBlock):
+
+    def __init__(self,
+                 latent_space_dimension: int,
+                 shape_before_bottleneck: tuple[int:],
+                 convolutional_transpose_filters: tuple[int:],
+                 convolutional_transpose_kernels: tuple[int:],
+                 convolutional_transpose_strides: tuple[int:],
+                 out_channels: int = 3):
+        super(ConvolutionalDecoder, self).__init__(
+            shape_before_bottleneck=shape_before_bottleneck,
+            convolutional_transpose_filters=convolutional_transpose_filters,
+            convolutional_transpose_kernels=convolutional_transpose_kernels,
+            convolutional_transpose_strides=convolutional_transpose_strides
+        )
+        self.latent_space_dimension = latent_space_dimension
+        self.shape_before_bottleneck = shape_before_bottleneck
+        self.out_channels = out_channels
+
+        self.dense_layer = self._build_dense_layer()
+        self.output_layer = self._build_output_layer()
+
+    def _build_dense_layer(self):
+        flattened_size = self.shape_before_bottleneck[0] * \
+                         self.shape_before_bottleneck[1] * \
+                         self.shape_before_bottleneck[2]
+        return nn.Linear(in_features=self.latent_space_dimension,
+                         out_features=flattened_size)
+
+    def _build_output_layer(self):
+        padding = (self.convolutional_transpose_kernels[-1] - 1) // 2
+        output_padding = (self.convolutional_transpose_strides[-1] -
+                          self.convolutional_transpose_kernels[-1] + (2 * padding))
+        output_convT = nn.ConvTranspose2d(
+            in_channels=self.convolutional_transpose_filters[-1],
+            out_channels=self.out_channels,
+            kernel_size=self.convolutional_transpose_kernels[-1],
+            stride=self.convolutional_transpose_strides[-1],
+            padding=padding,
+            output_padding=output_padding
+        )
+        return nn.Sequential(output_convT, nn.Sigmoid())
+
+    def forward(self, x):
+        return self.output_layer(self.convT_layers(
+            self.dense_layer(x).view(x.size(0), *self.shape_before_bottleneck)))
+
+    def summary(self):
+        print(self)
+
+
+class ConvolutionalAutoencoder(nn.Module):
+
+    def __init__(self,
+                 input_shape: tuple[int, int, int],
+                 convolutional_filters: tuple[int:],
+                 convolutional_kernels: tuple[int:],
+                 convolutional_strides: tuple[int:],
+                 latent_space_dimension: int = 2,
+                 convolutional_transpose_filters: tuple[int:] = None,
+                 convolutional_transpose_kernels: tuple[int:] = None,
+                 convolutional_transpose_strides: tuple[int:] = None):
+        super(ConvolutionalAutoencoder, self).__init__()
+
+        if convolutional_transpose_filters is None:
+            convolutional_transpose_filters = convolutional_filters[::-1]
+        if convolutional_transpose_kernels is None:
+            convolutional_transpose_kernels = convolutional_kernels[::-1]
+        if convolutional_transpose_strides is None:
+            convolutional_transpose_strides = convolutional_strides[::-1]
+
+        self.encoder = ConvolutionalEncoder(
+            input_shape=input_shape,
+            convolutional_filters=convolutional_filters,
+            convolutional_kernels=convolutional_kernels,
+            convolutional_strides=convolutional_strides,
+            latent_space_dimension=latent_space_dimension
+        )
+        self.decoder = ConvolutionalDecoder(
+            latent_space_dimension=latent_space_dimension,
+            shape_before_bottleneck=self.encoder.shape_before_bottleneck,
+            convolutional_transpose_filters=convolutional_transpose_filters,
+            convolutional_transpose_kernels=convolutional_transpose_kernels,
+            convolutional_transpose_strides=convolutional_transpose_strides,
+            out_channels=input_shape[0]
+        )
 
     def forward(self, x):
         return self.decoder(self.encoder(x))
