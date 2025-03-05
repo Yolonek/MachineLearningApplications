@@ -1,6 +1,7 @@
 from tqdm import tqdm
 from matplotlib import pyplot as plt
 import torch
+from torch.utils.data import DataLoader
 import numpy as np
 
 
@@ -68,24 +69,35 @@ def compare_generated_to_original_mnist(model_dict, mnist_dataset, cmap='gray'):
     return figure, axes
 
 
-def get_latent_space_points(model, dataset):
-    model = model.cpu().eval()
-    points = []
+def get_latent_space_points(encoder, dataset, batch_size=256, device='cuda'):
+    encoder = encoder.to(device).eval()
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    points_list = []
     label_list = []
-    for image, label in tqdm(dataset):
-        point = model(image.unsqueeze(0)).squeeze(0).detach().numpy()
-        points.append(point)
-        label_list.append(label)
-    return np.swapaxes(np.vstack(points), 1, 0), label_list
+    with torch.inference_mode():
+        for images, labels in tqdm(dataloader):
+            images = images.to(device)
+            points = encoder(images).cpu().numpy()
+            points_list.append(points)
+            label_list.append(labels.numpy())
+    return np.vstack(points_list).T, np.hstack(label_list)
 
 
-def compare_latent_spaces(models_dict, dataset, axes_list,
+def get_dict_of_latent_spaces(autoencoder_dict, dataset, batch_size=256, device='cuda'):
+    latent_space_dict = {}
+    for name, model in autoencoder_dict.items():
+        latent_space_dict[name] = get_latent_space_points(
+            model.encoder, dataset, batch_size=batch_size, device=device)
+    return latent_space_dict
+
+
+def compare_latent_spaces(latent_space_dict, axes_list,
                           s=0.5, alpha=0.7, cmap='cool'):
-    for (model_name, model), ax in zip(models_dict.items(), axes_list.ravel()):
-        latent_points, labels = get_latent_space_points(model.encoder, dataset)
+    for (name, space), ax in zip(latent_space_dict.items(), axes_list.ravel()):
+        latent_points, labels = space
         ax.scatter(*latent_points, c=labels, s=s, alpha=alpha, cmap=cmap)
         ax.axis(False)
-        ax.set(title=model_name)
+        ax.set(title=name)
 
 
 def zoom_limits(data, zoom_factor):
