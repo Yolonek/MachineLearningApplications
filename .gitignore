@@ -7,7 +7,6 @@ __pycache__/
 .ipynb_checkpoints/
 data/
 models/
-venv/
 06.Transformers/
 
 # files
