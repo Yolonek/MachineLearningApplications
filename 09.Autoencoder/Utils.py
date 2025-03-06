@@ -1,8 +1,12 @@
+import torch
+import numpy as np
 from tqdm import tqdm
 from matplotlib import pyplot as plt
-import torch
-from torch.utils.data import DataLoader
-import numpy as np
+from torch.utils.data import DataLoader, Subset
+from time import time
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
+from umap import UMAP
 
 
 def autoencoder_train_loop(model, dataloader, criterion,
@@ -106,3 +110,52 @@ def zoom_limits(data, zoom_factor):
     range_half = (data_max - data_min) * zoom_factor / 2
     return range_center - range_half, range_center + range_half
 
+
+def compare_3d_latent_spaces(latent_space_dict, axes_list,
+                             s=0.5, alpha=0.7, cmap='cool', zoom=0.85):
+    for i, ((name, space), ax) in enumerate(zip(latent_space_dict.items(), axes_list.ravel()),
+                                                  start=1):
+        latent_points, labels = space
+        ax.scatter(*latent_points, c=labels, s=s, alpha=alpha, cmap=cmap)
+        for axis in [ax.xaxis, ax.yaxis, ax.zaxis]:
+            axis.set_tick_params(which='major', color='black')
+        ax.set(title=name)
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        ax.set_zticklabels([])
+        ax.set_xlim(zoom_limits(latent_points[0], zoom_factor=zoom))
+        ax.set_ylim(zoom_limits(latent_points[1], zoom_factor=zoom))
+        ax.set_zlim(zoom_limits(latent_points[2], zoom_factor=zoom))
+
+
+def dataset_subset(dataset, n_samples):
+    return Subset(dataset, torch.randperm(len(dataset))[:n_samples])
+
+def reduce_dimensions(latent_space, reduced_dim=2, method='PCA', **method_params):
+    start = time()
+    match method.upper():
+        case 'PCA':
+            reduction = PCA(n_components=reduced_dim, **method_params)
+        case 'TSNE':
+            reduction = TSNE(n_components=reduced_dim, **method_params)
+        # imcompatible with python 3.12
+        # case 'TSNE_CUDA':
+        #     reduction = TSNE_cuda(n_components=reduced_dim, **method_params)
+        case 'UMAP':
+            reduction = UMAP(n_components=reduced_dim, **method_params)
+        case _:
+            return None
+    result = reduction.fit_transform(latent_space)
+    total_time = time() - start
+    return result, total_time
+
+
+def reduce_dimensions_of_dict(latent_space_dict,
+                              reduced_dim=2, method='PCA', **method_params):
+    reduced_dim_dict = {}
+    for name, (latent_space, latent_space_label) in latent_space_dict.items():
+        result, result_time = reduce_dimensions(
+            latent_space.T, reduced_dim=reduced_dim, method=method, **method_params)
+        reduced_dim_dict[name] = (result.T, latent_space_label)
+        print(f'Reduced for {name}, time taken: {result_time:.3f} seconds.')
+    return reduced_dim_dict
