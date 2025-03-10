@@ -131,6 +131,7 @@ def compare_3d_latent_spaces(latent_space_dict, axes_list,
 def dataset_subset(dataset, n_samples):
     return Subset(dataset, torch.randperm(len(dataset))[:n_samples])
 
+
 def reduce_dimensions(latent_space, reduced_dim=2, method='PCA', **method_params):
     start = time()
     match method.upper():

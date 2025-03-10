@@ -1,6 +1,8 @@
 import torch
+import operator
 from torch import nn
 from collections import OrderedDict
+from functools import reduce
 
 
 class DenseBlock(nn.Module):
@@ -52,16 +54,16 @@ class DenseBlock(nn.Module):
 class DenseEncoder(DenseBlock):
 
     def __init__(self,
-                 input_shape: tuple[int, int, int],
+                 input_shape: tuple[int:],
                  hidden_layers: tuple[int:] = None,
-                 latent_space_dim: int = 2,
+                 latent_space_dimension: int = 2,
                  dropout: float = 0.2):
         self.input_shape = input_shape
-        input_size = input_shape[0] * input_shape[1] * input_shape[2]
+        input_size = reduce(operator.mul, input_shape)
         super(DenseEncoder, self).__init__(input_size=input_size,
                                            hidden_layers=hidden_layers,
                                            dropout=dropout)
-        self.latent_space_dim = latent_space_dim
+        self.latent_space_dim = latent_space_dimension
 
         self.flatten = nn.Flatten()
         self.output_layer = self._build_output_layer()
@@ -81,15 +83,15 @@ class DenseEncoder(DenseBlock):
 class DenseDecoder(DenseBlock):
 
     def __init__(self,
-                 output_shape: tuple[int, int, int],
+                 output_shape: tuple[int:],
                  hidden_layers: tuple[int:] = None,
-                 latent_space_dim: int = 2,
+                 latent_space_dimension: int = 2,
                  dropout: float = 0.2):
-        super(DenseDecoder, self).__init__(input_size=latent_space_dim,
+        super(DenseDecoder, self).__init__(input_size=latent_space_dimension,
                                            hidden_layers=hidden_layers,
                                            dropout=dropout)
         self.output_shape = output_shape
-        self.latent_space_dim = latent_space_dim
+        self.latent_space_dim = latent_space_dimension
         self.output_layer = self._build_output_layer()
 
     def _build_output_layer(self):
@@ -97,7 +99,7 @@ class DenseDecoder(DenseBlock):
             in_features = self.latent_space_dim
         else:
             in_features = self.hidden_layers[-1]
-        out_features = self.output_shape[0] * self.output_shape[1] * self.output_shape[2]
+        out_features = reduce(operator.mul, self.output_shape)
         return nn.Sequential(nn.Linear(in_features=in_features,
                                        out_features=out_features),
                              nn.Sigmoid())
@@ -109,23 +111,23 @@ class DenseDecoder(DenseBlock):
 class DenseAutoencoder(nn.Module):
 
     def __init__(self,
-                 input_shape: tuple[int, int, int],
+                 input_shape: tuple[int:],
                  encoder_hidden_layers: tuple[int:] = None,
                  decoder_hidden_layers: tuple[int:] = None,
-                 latent_space_dim: int = 2,
+                 latent_space_dimension: int = 2,
                  dropout: float = 0.1):
         super(DenseAutoencoder, self).__init__()
 
         self.encoder = DenseEncoder(input_shape=input_shape,
                                     hidden_layers=encoder_hidden_layers,
-                                    latent_space_dim=latent_space_dim,
+                                    latent_space_dimension=latent_space_dimension,
                                     dropout=dropout)
 
         if decoder_hidden_layers is None:
             decoder_hidden_layers = self.encoder.hidden_layers[::-1]
         self.decoder = DenseDecoder(output_shape=input_shape,
                                     hidden_layers=decoder_hidden_layers,
-                                    latent_space_dim=latent_space_dim,
+                                    latent_space_dimension=latent_space_dimension,
                                     dropout=dropout)
 
     def forward(self, x):
