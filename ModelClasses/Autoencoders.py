@@ -137,6 +137,88 @@ class DenseAutoencoder(nn.Module):
         print(self)
 
 
+class DenseVariationalEncoder(DenseBlock):
+
+    def __init__(self,
+                 input_shape: tuple[int:],
+                 hidden_layers: tuple[int:] = None,
+                 latent_space_dimension: int = 2,
+                 dropout: float = 0.2):
+        self.input_shape = input_shape
+        input_size = reduce(operator.mul, input_shape)
+        super(DenseVariationalEncoder, self).__init__(
+            input_size=input_size,
+            hidden_layers=hidden_layers,
+            dropout=dropout)
+        self.latent_space_dim = latent_space_dimension
+
+        self.flatten = nn.Flatten()
+        self.dense_mu, self.dense_logvar = self._build_variational_layer()
+
+    def _build_variational_layer(self):
+        if self.num_of_layers == 0:
+            in_features = self.input_size
+        else:
+            in_features = self.hidden_layers[-1]
+        mu_layer = nn.Linear(in_features=in_features,
+                             out_features=self.latent_space_dim)
+        logvar_layer = nn.Linear(in_features=in_features,
+                                 out_features=self.latent_space_dim)
+        return mu_layer, logvar_layer
+
+    def forward(self, x):
+        x = self.dense_layers(self.flatten(x))
+        return self.dense_mu(x), self.dense_logvar(x)
+
+    def summary(self):
+        print(self)
+
+
+class DenseVariationalAutoencoder(nn.Module):
+
+    def __init__(self,
+                 input_shape: tuple[int:],
+                 encoder_hidden_layers: tuple[int:] = None,
+                 decoder_hidden_layers: tuple[int:] = None,
+                 latent_space_dimension: int = 2,
+                 dropout: float = 0.1):
+        super(DenseVariationalAutoencoder, self).__init__()
+
+        self.encoder = DenseVariationalEncoder(
+            input_shape=input_shape,
+            hidden_layers=encoder_hidden_layers,
+            latent_space_dimension=latent_space_dimension,
+            dropout=dropout)
+
+        if decoder_hidden_layers is None:
+            decoder_hidden_layers = self.encoder.hidden_layers[::-1]
+        self.decoder = DenseDecoder(
+            output_shape=input_shape,
+            hidden_layers=decoder_hidden_layers,
+            latent_space_dimension=latent_space_dimension,
+            dropout=dropout)
+
+    @staticmethod
+    def reparametrization(mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + (eps * std)
+
+    def encode_and_reparametrize(self, x):
+        return self.reparametrization(*self.encoder(x))
+
+    def forward_mu_logvar(self, mu, logvar):
+        z = self.reparametrization(mu, logvar)
+        return self.decoder(z)
+
+    def forward(self, x):
+        mu, logvar = self.encoder(x)
+        return self.forward_mu_logvar(mu, logvar), mu, logvar
+
+    def summary(self):
+        print(self)
+
+
 class ConvolutionalBlock(nn.Module):
 
     def __init__(self,
@@ -356,6 +438,103 @@ class ConvolutionalAutoencoder(nn.Module):
 
     def forward(self, x):
         return self.decoder(self.encoder(x))
+
+    def summary(self):
+        print(self)
+
+
+class ConvolutionalVariationalEncoder(ConvolutionalBlock):
+
+    def __init__(self,
+                 input_shape: tuple[int, int, int],
+                 convolutional_filters: tuple[int:],
+                 convolutional_kernels: tuple[int:],
+                 convolutional_strides: tuple[int:],
+                 latent_space_dimension: int = 2):
+        super(ConvolutionalVariationalEncoder, self).__init__(
+            input_shape=input_shape,
+            convolutional_filters=convolutional_filters,
+            convolutional_kernels=convolutional_kernels,
+            convolutional_strides=convolutional_strides
+        )
+        self.latent_space_dim = latent_space_dimension
+        self.shape_before_bottleneck = None
+        self.shape_flattened = None
+
+        self.flatten = nn.Flatten()
+        self.dense_mu, self.dense_logvar = self._build_variational_layer()
+
+    def _build_variational_layer(self):
+        dummy_input = torch.zeros(1, *self.input_shape)
+        conv_out = self.conv_layers(dummy_input)
+        self.shape_before_bottleneck = conv_out.shape[1:]
+        self.shape_flattened = conv_out.numel()
+        mu_layer = nn.Linear(in_features=self.shape_flattened,
+                             out_features=self.latent_space_dim)
+        logvar_layer = nn.Linear(in_features=self.shape_flattened,
+                                 out_features=self.latent_space_dim)
+        return mu_layer, logvar_layer
+
+    def forward(self, x):
+        x = self.flatten(self.conv_layers(x))
+        return self.dense_mu(x), self.dense_logvar(x)
+
+    def summary(self):
+        print(self)
+
+
+class ConvolutionalVariationalAutoencoder(nn.Module):
+
+    def __init__(self,
+                 input_shape: tuple[int, int, int],
+                 convolutional_filters: tuple[int:],
+                 convolutional_kernels: tuple[int:],
+                 convolutional_strides: tuple[int:],
+                 latent_space_dimension: int = 2,
+                 convolutional_transpose_filters: tuple[int:] = None,
+                 convolutional_transpose_kernels: tuple[int:] = None,
+                 convolutional_transpose_strides: tuple[int:] = None):
+        super(ConvolutionalVariationalAutoencoder, self).__init__()
+
+        if convolutional_transpose_filters is None:
+            convolutional_transpose_filters = convolutional_filters[::-1]
+        if convolutional_transpose_kernels is None:
+            convolutional_transpose_kernels = convolutional_kernels[::-1]
+        if convolutional_transpose_strides is None:
+            convolutional_transpose_strides = convolutional_strides[::-1]
+
+        self.encoder = ConvolutionalVariationalEncoder(
+            input_shape=input_shape,
+            convolutional_filters=convolutional_filters,
+            convolutional_kernels=convolutional_kernels,
+            convolutional_strides=convolutional_strides,
+            latent_space_dimension=latent_space_dimension
+        )
+        self.decoder = ConvolutionalDecoder(
+            latent_space_dimension=latent_space_dimension,
+            shape_before_bottleneck=self.encoder.shape_before_bottleneck,
+            convolutional_transpose_filters=convolutional_transpose_filters,
+            convolutional_transpose_kernels=convolutional_transpose_kernels,
+            convolutional_transpose_strides=convolutional_transpose_strides,
+            out_channels=input_shape[0]
+        )
+
+    @staticmethod
+    def reparametrization(mu, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mu + (eps * std)
+
+    def encode_and_reparametrize(self, x):
+        return self.reparametrization(*self.encoder(x))
+
+    def forward_mu_logvar(self, mu, logvar):
+        z = self.reparametrization(mu, logvar)
+        return self.decoder(z)
+
+    def forward(self, x):
+        mu, logvar = self.encoder(x)
+        return self.forward_mu_logvar(mu, logvar), mu, logvar
 
     def summary(self):
         print(self)
