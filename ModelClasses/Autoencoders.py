@@ -538,3 +538,31 @@ class ConvolutionalVariationalAutoencoder(nn.Module):
 
     def summary(self):
         print(self)
+
+
+class KLDivergence(nn.Module):
+
+    def __init__(self, kld_weight=0.02):
+        super(KLDivergence, self).__init__()
+        self.kld_weight = kld_weight
+
+    def forward(self, mu, logvar):
+        kl_batch = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=1)
+        kl_loss = torch.mean(kl_batch, dim=0)
+        return self.kld_weight * kl_loss
+
+
+class VAELoss(nn.Module):
+
+    def __init__(self, reconstruction_loss=nn.MSELoss(), kld_weight=0.02):
+        super(VAELoss, self).__init__()
+        self.reconstruction_loss = reconstruction_loss
+        self.kl_divergence = KLDivergence(kld_weight=kld_weight)
+
+    def forward(self, r_x, x, mu, logvar):
+        reconstruction_loss = self.reconstruction_loss(r_x, x)
+        kl_loss = self.kl_divergence(mu, logvar)
+        total_loss = reconstruction_loss + kl_loss
+        return total_loss, reconstruction_loss.detach(), kl_loss.detach()
+
+

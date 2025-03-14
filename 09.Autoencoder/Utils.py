@@ -16,10 +16,10 @@ def autoencoder_train_loop(model, dataloader, criterion,
     with tqdm(range(epochs)) as pbar:
         for _ in pbar:
             loss_train = 0
-            for images, _ in dataloader:
-                images = images.to(device)
-                outputs = model(images)
-                loss = criterion(outputs, images)
+            for y_true, _ in dataloader:
+                y_true = y_true.to(device)
+                y_pred = model(y_true)
+                loss = criterion(y_pred, y_true)
                 loss_train += (loss_value := loss.item())
                 optimizer.zero_grad()
                 loss.backward()
@@ -61,8 +61,12 @@ def compare_generated_to_original_mnist(model_dict, mnist_dataset, cmap='gray'):
         axes[0, digit].imshow(img.permute(1, 2, 0).numpy(), cmap=cmap)
         for i, model in enumerate(model_dict.values(), start=1):
             model.eval()
-            reconstruction = model.cpu()(img.unsqueeze(0)).squeeze(0).detach()
-            axes[i, digit].imshow(reconstruction.permute(1, 2, 0).numpy(), cmap=cmap)
+            with torch.inference_mode():
+                reconstruction = model.cpu()(img.unsqueeze(0))
+                if isinstance(reconstruction, tuple):
+                    reconstruction = reconstruction[0]
+                reconstruction = reconstruction.squeeze(0)
+                axes[i, digit].imshow(reconstruction.permute(1, 2, 0).numpy(), cmap=cmap)
     for ax in axes.ravel():
         ax.axis(False)
     for i, model_name in enumerate(['Original'] + list(model_dict.keys())):
@@ -160,3 +164,33 @@ def reduce_dimensions_of_dict(latent_space_dict,
         reduced_dim_dict[name] = (result.T, latent_space_label)
         print(f'Reduced for {name}, time taken: {result_time:.3f} seconds.')
     return reduced_dim_dict
+
+
+def vae_train_loop(model, dataloader, criterion,
+                   optimizer, device, epochs):
+    recon_loss_list = []
+    kl_loss_list = []
+    total_loss_list = []
+    model.train()
+    with tqdm(range(epochs)) as pbar:
+        for _ in pbar:
+            recon_loss_train = 0
+            kl_loss_train = 0
+            total_loss_train = 0
+            for x_true, _ in dataloader:
+                x_true = x_true.to(device)
+                x_pred, mu, logvar = model(x_true)
+                total_loss, recon_loss, kl_loss = criterion(x_pred, x_true, mu, logvar)
+                optimizer.zero_grad()
+                total_loss.backward()
+                recon_loss_train += (recon_loss_value := recon_loss.item())
+                kl_loss_train += (kl_loss_value := kl_loss.item())
+                total_loss_train += (total_loss_value := total_loss.item())
+                optimizer.step()
+                pbar.set_postfix(dict(loss=f'{total_loss_value:.3f}',
+                                      rec=f'{recon_loss_value:.3f}',
+                                      kl=f'{kl_loss_value:.5f}'))
+            total_loss_list.append(total_loss_train / (data_len := len(dataloader)))
+            recon_loss_list.append(recon_loss_train / data_len)
+            kl_loss_list.append(kl_loss_train / data_len)
+    return total_loss_list, recon_loss_list, kl_loss_list
